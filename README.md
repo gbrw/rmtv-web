@@ -1,54 +1,36 @@
-# RM TV
+# RM TV — نسخة الويب (PWA)
 
-تطبيق بث مباشر للقنوات (IPTV) مع نسخة ويب ولوحة تحكم، وكلها تعمل على قاعدة بيانات Firebase Firestore واحدة.
-
-## مكونات المشروع
-
-| المجلد | الوصف |
+| المسار | الوصف |
 |---|---|
-| `android/` | تطبيق أندرويد / أندرويد TV (Kotlin + ExoPlayer) — الإصدار 1.4 |
-| `admin_app/` | تطبيق الإدارة القديم لأندرويد (Kotlin) |
-| `pwa/` | نسخة الويب العامة (PWA) — https://rmtv-tv.vercel.app |
-| `pwa/admin/` | لوحة التحكم على الويب (PWA) — https://rmtv-tv.vercel.app/admin/ |
-| `firestore.rules` | قواعد حماية Firestore (القراءة للجميع، التعديل للمدير فقط) |
+| `/` | نسخة المشاهدة العامة، تعمل على كل الهواتف والمتصفحات ويمكن تثبيتها كتطبيق |
+| `/admin/` | لوحة التحكم، تعمل من أي متصفح (أندرويد، iOS، ويندوز) ويمكن تثبيتها كتطبيق |
 
-### بيانات Firestore
-- `networks` — الباقات: `name`, `logoUrl`, `order`, `isActive`
-- `channels` — القنوات: `name`, `logoUrl`, `url`, `streamType` (`direct` / `youtube`), `networkId`, `order`, `isActive`, `showOnWeb` (اختياري)
-- `settings/appUpdate` — تحديث تطبيق أندرويد: `latestVersionCode`, `apkUrl`, `forceUpdate`
+كلاهما يقرأ ويكتب في نفس قاعدة Firestore الخاصة بتطبيقات أندرويد (`networks`, `channels`, `settings/appUpdate`).
 
-## تطبيق أندرويد (`android/`)
-- قوائم للباقات والقنوات، بحث، وتنقّل كامل بالريموت.
-- مشغل ExoPlayer بواجهة احترافية: قائمة قنوات جانبية، تغيير حجم الشاشة، رقم القناة عند التبديل.
-- إعادة اتصال تلقائية + مراقب لتجمّد الصورة + استئناف عند رجوع الإنترنت.
-- مشغلات خارجية (VLC، MX Player، ...) ومشغل افتراضي قابل للاختيار.
-- ثيمات: 4 خلفيات × 7 ألوان.
-
-البناء (يتطلب JDK 17 و Android SDK 34):
+## التجربة محلياً
 ```
-cd android
-gradlew assembleRelease
+powershell -ExecutionPolicy Bypass -File pwa\serve.ps1
 ```
-الناتج: `android/app/build/outputs/apk/release/app-release.apk`
+ثم افتح http://localhost:8080 و http://localhost:8080/admin/
 
-> مفتاح التوقيع وملفات `local.properties` غير مرفوعة (انظر `.gitignore`).
+## الإعداد لأول مرة (Firebase Console — مشروع rmtv-tv-488b9)
+1. **Authentication > Sign-in method**: فعّل Email/Password.
+2. **Authentication > Users**: أضف حساب المدير وانسخ الـ UID.
+3. **Firestore**: أنشئ مستنداً `admins/<UID>` (أي محتوى، مثلاً `name: "admin"`).
+4. (اختياري) **Project settings > Add app > Web**: انسخ `appId` إلى `pwa/config.js`.
 
-## نسخة الويب (`pwa/`)
-ملفات ثابتة بدون أي خطوة بناء، منشورة على Vercel:
+## النشر على Firebase Hosting
 ```
-cd pwa
-vercel deploy --prod
-```
-- تعرض فقط القنوات التي تعمل في المتصفح (روابط https ويوتيوب).
-- 9 مشغلات ويب (hls.js، Video.js، Shaka، Clappr، Plyr، ArtPlayer، DPlayer، ...) مع تبديل تلقائي عند الفشل.
-- قابلة للتثبيت كتطبيق (PWA) على أندرويد و iOS والكمبيوتر.
-- التجربة محلياً: `powershell -ExecutionPolicy Bypass -File pwa\serve.ps1`
-
-### لوحة التحكم (`pwa/admin/`)
-- دخول بحساب Google؛ الحسابات المسموحة في `pwa/config.js` (`ADMIN_EMAILS`) وفي `firestore.rules`.
-- إدارة الباقات والقنوات، الترتيب، التفعيل، الظهور على الويب، ونشر تحديثات تطبيق أندرويد.
-
-## Firebase
-```
+npm i -g firebase-tools
+firebase login
+firebase deploy --only hosting
 firebase deploy --only firestore:rules
 ```
+> ⚠️ قواعد `firestore.rules` تمنع أي تعديل بدون تسجيل دخول مدير، وهذا يعني أن تطبيق الأدمن الحالي (أندرويد) لن يستطيع الحفظ بعد نشرها لأنه لا يسجّل دخولاً.
+
+عند كل تحديث للملفات غيّر `VERSION` في `sw.js` حتى يحصل المستخدمون على النسخة الجديدة.
+
+## ملاحظات
+- روابط البث التي تبدأ بـ `http://` لا يسمح المتصفح بتشغيلها من موقع `https` (قيود أمان المتصفح). تعمل فقط روابط `https`.
+- بعض السيرفرات تمنع التشغيل من المتصفح (CORS) حتى لو كان الرابط يعمل في التطبيق.
+- على iOS: التثبيت من Safari عبر زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».

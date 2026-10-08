@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <dimen name="network_card_height">140dp</dimen>
-    <dimen name="network_logo_size">56dp</dimen>
-    <dimen name="channel_card_height">180dp</dimen>
-    <dimen name="channel_logo_size">100dp</dimen>
-    <dimen name="card_margin">8dp</dimen>
-</resources>
