@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>RM TV</title>
+  <meta name="description" content="RM TV — شاهد باقاتك وقنواتك المفضلة مباشرة من المتصفح بدون تثبيت.">
+  <meta name="theme-color" content="#0b0f14">
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RM TV">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="boot" id="boot">
+    <img src="icons/icon-192.png" alt="">
+    <div class="spinner"></div>
+    <p id="bootMsg">جاري التحميل…</p>
+    <button class="btn btn-primary" id="bootRetry" hidden>إعادة المحاولة</button>
+  </div>
+  <script src="boot.js"></script>
+  <script nomodule>document.getElementById("bootMsg").textContent = "متصفحك قديم جداً. حدّث النظام أو استخدم أحدث إصدار من Chrome أو Safari.";</script>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <button class="icon-btn" id="backBtn" hidden aria-label="رجوع"></button>
+      <a class="brand" href="#/">
+        <img src="icons/icon-192.png" alt="" width="36" height="36">
+        <span>RMTV</span>
+      </a>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="favBtn" aria-label="المفضلة" title="المفضلة"></button>
+    </div>
+  </header>
+
+  <main class="container" id="main">
+    <section class="hero">
+      <h1 id="title">اختر باقتك</h1>
+      <p id="subtitle">استمتع بأفضل التغطيات الرياضية العالمية والمحلية</p>
+      <div class="search">
+        <span id="searchIcon"></span>
+        <input class="input" id="search" type="search" placeholder="ابحث عن باقتك المفضلة..." autocomplete="off" enterkeyhint="search">
+      </div>
+    </section>
+
+    <div id="content" aria-live="polite"></div>
+  </main>
+
+  <!-- المشغل -->
+  <section class="player" id="player" hidden aria-label="مشغل القناة">
+    <div class="player-stage" id="stage">
+      <div class="engine-host" id="engineHost"></div>
+      <iframe id="yt" hidden allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="YouTube"></iframe>
+      <div class="player-msg" id="playerMsg" hidden><p id="playerMsgText"></p><div class="ext-list" id="playerMsgPlayers"></div></div>
+      <div class="spinner player-spinner" id="playerSpinner" hidden></div>
+    </div>
+    <div class="player-bar">
+      <button class="icon-btn" id="closePlayer" aria-label="إغلاق"></button>
+      <div class="player-title">
+        <strong id="playerName"></strong>
+        <span id="playerNetwork"></span>
+      </div>
+      <button class="icon-btn" id="prevCh" aria-label="القناة السابقة"></button>
+      <button class="icon-btn" id="nextCh" aria-label="القناة التالية"></button>
+      <button class="icon-btn" id="reloadCh" aria-label="إعادة التحميل"></button>
+      <button class="icon-btn" id="playersBtn" aria-label="تغيير المشغل" title="تغيير المشغل"></button>
+      <button class="icon-btn" id="fsBtn" aria-label="ملء الشاشة"></button>
+    </div>
+    <div class="ext-sheet" id="playersSheet" hidden>
+      <div class="ext-sheet-card">
+        <div class="ext-sheet-head">
+          <strong>اختر المشغل</strong>
+          <button class="icon-btn btn-ghost" id="playersClose" aria-label="إغلاق"></button>
+        </div>
+        <div class="ext-list" id="playersList"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="install-banner" id="installBanner" hidden>
+    <img src="icons/icon-192.png" alt="">
+    <div style="flex:1">
+      <strong>ثبّت RM TV على جهازك</strong>
+      <p id="installText">وصول أسرع بدون متجر تطبيقات</p>
+    </div>
+    <button class="btn btn-primary" id="installBtn">تثبيت</button>
+    <button class="icon-btn btn-ghost" id="installClose" aria-label="إغلاق"></button>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

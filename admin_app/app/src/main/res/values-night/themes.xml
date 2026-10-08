@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Mode Theme (Deep Ocean) -->
+    <style name="Theme.RMTV" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="colorPrimary">#38BDF8</item>
+        <item name="colorOnPrimary">#0F172A</item>
+        <item name="colorSecondary">#0EA5E9</item>
+        <item name="colorSurface">#0F172A</item>
+        <item name="colorSurfaceVariant">#1E293B</item>
+        <item name="colorOnSurface">#F1F5F9</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

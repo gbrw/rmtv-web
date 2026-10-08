@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light Mode Theme (Premium Blue) -->
+    <style name="Theme.RMTV" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="colorPrimary">#0D47A1</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#1565C0</item>
+        <item name="colorSurface">#F8FAFC</item>
+        <item name="colorSurfaceVariant">#E2E8F0</item>
+        <item name="colorOnSurface">#0F172A</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

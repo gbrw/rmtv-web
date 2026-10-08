@@ -1,125 +1,54 @@
-# RMTV Flutter Web Build
+# RM TV
 
-[العربية](#العربية) | [English](#english)
+تطبيق بث مباشر للقنوات (IPTV) مع نسخة ويب ولوحة تحكم، وكلها تعمل على قاعدة بيانات Firebase Firestore واحدة.
 
-## العربية
+## مكونات المشروع
 
-نسخة نشر مجمّعة بتقنية Flutter Web لتطبيق RMTV. يحتوي هذا المستودع على الملفات اللازمة لتقديم نسخة الويب الحالية، بما فيها حزمة تطبيق JavaScript وملفات عارض Flutter وأصول التطبيق وبيانات PWA الوصفية وعامل خدمة للتخزين المؤقت دون اتصال.
+| المجلد | الوصف |
+|---|---|
+| `android/` | تطبيق أندرويد / أندرويد TV (Kotlin + ExoPlayer) — الإصدار 1.4 |
+| `admin_app/` | تطبيق الإدارة القديم لأندرويد (Kotlin) |
+| `pwa/` | نسخة الويب العامة (PWA) — https://rmtv-tv.vercel.app |
+| `pwa/admin/` | لوحة التحكم على الويب (PWA) — https://rmtv-tv.vercel.app/admin/ |
+| `firestore.rules` | قواعد حماية Firestore (القراءة للجميع، التعديل للمدير فقط) |
 
-### الإمكانات المضمّنة
+### بيانات Firestore
+- `networks` — الباقات: `name`, `logoUrl`, `order`, `isActive`
+- `channels` — القنوات: `name`, `logoUrl`, `url`, `streamType` (`direct` / `youtube`), `networkId`, `order`, `isActive`, `showOnWeb` (اختياري)
+- `settings/appUpdate` — تحديث تطبيق أندرويد: `latestVersionCode`, `apkUrl`, `forceUpdate`
 
-- تطبيق Flutter مجمّع يُحمّل عبر `flutter_bootstrap.js`.
-- عرض CanvasKit باستخدام ملفات JavaScript وWebAssembly محلية.
-- بيان Progressive Web App يتضمن أيقونات قياسية وأيقونات قابلة للاقتصاص (`maskable`).
-- عامل خدمة Flutter يخزّن موارد النسخة مؤقتاً.
-- تحميل Video.js 7.21.5 من شبكة CDN الخاصة به عبر صفحة الاستضافة.
-- شعارات وأيقونات تطبيق وصور تلفاز وصورة للمشرف وخط مخصص مضمّنة في الحزمة.
-- بيانات وصفية للنسخة ذات إصدار التطبيق `2.1.0` ورقم البناء `3`.
+## تطبيق أندرويد (`android/`)
+- قوائم للباقات والقنوات، بحث، وتنقّل كامل بالريموت.
+- مشغل ExoPlayer بواجهة احترافية: قائمة قنوات جانبية، تغيير حجم الشاشة، رقم القناة عند التبديل.
+- إعادة اتصال تلقائية + مراقب لتجمّد الصورة + استئناف عند رجوع الإنترنت.
+- مشغلات خارجية (VLC، MX Player، ...) ومشغل افتراضي قابل للاختيار.
+- ثيمات: 4 خلفيات × 7 ألوان.
 
-تتضمن إشعارات الأطراف الثالثة المُنشأة حزم Flutter الخاصة بـ Firebase Core وCloud Firestore وRiverpod وطلبات HTTP والتفضيلات المشتركة وفتح عناوين URL وتشغيل الفيديو ودعم إبقاء الجهاز في وضع الاستيقاظ.
-
-### التقنيات المستخدمة
-
-- Flutter Web وDart مجمّعان باستخدام `dart2js`
-- CanvasKit وWebAssembly
-- عامل خدمة JavaScript وبيان تطبيق ويب
-- Video.js
-- حزمتا Firebase Core وCloud Firestore المضمّنتان في إشعارات النسخة
-
-### التشغيل محلياً
-
-لا تفتح `index.html` مباشرة كملف. قدّم المجلد كاملاً عبر HTTP لكي يتمكن التطبيق وموارد WebAssembly وعامل الخدمة من التحميل بصورة صحيحة.
-
-1. افتح نافذة أوامر في مجلد المشروع.
-2. شغّل خادم ملفات ثابتة:
-
-   ```bash
-   python -m http.server 8000
-   ```
-
-3. افتح `http://localhost:8000` في المتصفح.
-
-أبقِ بنية المجلد من دون تغيير. يتوقع الوسم `<base href="/">` المضمّن استضافة النسخة في جذر نطاق أو خادم محلي. يلزم اتصال بالإنترنت لشبكة CDN الخاصة بـ Video.js ولأي خدمات بعيدة يستخدمها التطبيق المجمّع.
-
-### بنية المشروع
-
-```text
-.
-|-- index.html                    # صفحة استضافة الويب
-|-- flutter_bootstrap.js          # إعدادات مُحمّل Flutter المُنشأة
-|-- flutter.js                    # مُحمّل بيئة تشغيل Flutter Web
-|-- main.dart.js                  # حزمة التطبيق المجمّعة
-|-- flutter_service_worker.js     # ذاكرة التخزين المؤقت للموارد دون اتصال المُنشأة
-|-- manifest.json                 # بيانات PWA الوصفية
-|-- version.json                  # إصدار التطبيق ورقم البناء
-|-- assets/                       # الخطوط والصور والمظللات والإشعارات
-|-- canvaskit/                    # ملفات JavaScript وWebAssembly الخاصة بالعارض
-`-- icons/                        # أيقونات PWA
+البناء (يتطلب JDK 17 و Android SDK 34):
 ```
-
-### الحالة الحالية
-
-هذا المستودع عنصر نشر مُنشأ وليس مشروع Flutter المصدري. لا يتضمن ملفات Dart المصدرية أو `pubspec.yaml` أو إعدادات البناء أو اختبارات آلية. يمكنك تقديم النسخة الحالية ونشرها، لكن إعادة بنائها أو تغيير سلوك التطبيق يتطلب مشروع Flutter المصدري الأصلي.
-
-يحتوي `assets/NOTICES` على إشعارات الأطراف الثالثة المُنشأة مع نسخة Flutter. لا يتضمن هذا المستودع ملف ترخيص على مستوى المشروع.
-
-## English
-
-A compiled Flutter Web deployment for the RMTV application. This repository contains the files needed to serve the existing web build, including the JavaScript application bundle, Flutter renderer files, application assets, PWA metadata, and an offline cache service worker.
-
-### Included Capabilities
-
-- Compiled Flutter application loaded through `flutter_bootstrap.js`.
-- CanvasKit rendering with local JavaScript and WebAssembly files.
-- Progressive Web App manifest with standard and maskable icons.
-- Flutter service worker that caches the build resources.
-- Video.js 7.21.5 loaded from its CDN by the host page.
-- Packaged logos, app icons, TV images, an admin image, and a custom font.
-- Build metadata for application version `2.1.0`, build number `3`.
-
-The generated third-party notices include Flutter packages for Firebase Core, Cloud Firestore, Riverpod, HTTP requests, shared preferences, URL launching, video playback, and wake-lock support.
-
-### Tech Stack
-
-- Flutter Web and Dart compiled with `dart2js`
-- CanvasKit and WebAssembly
-- JavaScript service worker and web app manifest
-- Video.js
-- Firebase Core and Cloud Firestore packages included in the build notices
-
-### Run Locally
-
-Do not open `index.html` directly as a file. Serve the complete directory over HTTP so the application, WebAssembly resources, and service worker can load correctly.
-
-1. Open a terminal in the project directory.
-2. Start a static file server:
-
-   ```bash
-   python -m http.server 8000
-   ```
-
-3. Open `http://localhost:8000` in a browser.
-
-Keep the directory structure unchanged. The included `<base href="/">` expects the build to be hosted at the root of a domain or local server. Internet access is required for the Video.js CDN and for any remote services used by the compiled application.
-
-### Project Structure
-
-```text
-.
-|-- index.html                    # Web host page
-|-- flutter_bootstrap.js          # Generated Flutter loader configuration
-|-- flutter.js                    # Flutter web runtime loader
-|-- main.dart.js                  # Compiled application bundle
-|-- flutter_service_worker.js     # Generated offline resource cache
-|-- manifest.json                 # PWA metadata
-|-- version.json                  # Application version and build number
-|-- assets/                       # Fonts, images, shaders, and notices
-|-- canvaskit/                    # Renderer JavaScript and WebAssembly
-`-- icons/                        # PWA icons
+cd android
+gradlew assembleRelease
 ```
+الناتج: `android/app/build/outputs/apk/release/app-release.apk`
 
-### Current Status
+> مفتاح التوقيع وملفات `local.properties` غير مرفوعة (انظر `.gitignore`).
 
-This repository is a generated deployment artifact, not the Flutter source project. It does not include Dart source files, `pubspec.yaml`, build configuration, or automated tests. You can serve and deploy the current build, but rebuilding or changing application behavior requires the original Flutter source project.
+## نسخة الويب (`pwa/`)
+ملفات ثابتة بدون أي خطوة بناء، منشورة على Vercel:
+```
+cd pwa
+vercel deploy --prod
+```
+- تعرض فقط القنوات التي تعمل في المتصفح (روابط https ويوتيوب).
+- 9 مشغلات ويب (hls.js، Video.js، Shaka، Clappr، Plyr، ArtPlayer، DPlayer، ...) مع تبديل تلقائي عند الفشل.
+- قابلة للتثبيت كتطبيق (PWA) على أندرويد و iOS والكمبيوتر.
+- التجربة محلياً: `powershell -ExecutionPolicy Bypass -File pwa\serve.ps1`
 
-`assets/NOTICES` contains third-party notices generated with the Flutter build. No project-level license file is included in this repository.
+### لوحة التحكم (`pwa/admin/`)
+- دخول بحساب Google؛ الحسابات المسموحة في `pwa/config.js` (`ADMIN_EMAILS`) وفي `firestore.rules`.
+- إدارة الباقات والقنوات، الترتيب، التفعيل، الظهور على الويب، ونشر تحديثات تطبيق أندرويد.
+
+## Firebase
+```
+firebase deploy --only firestore:rules
+```

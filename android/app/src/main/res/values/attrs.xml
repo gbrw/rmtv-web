@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ألوان الثيم: تُستخدم في كل الشاشات وتتغير حسب اختيار المستخدم (ThemeManager) -->
+<resources>
+    <attr name="rmtvAccent" format="color" />
+    <attr name="rmtvBackground" format="color" />
+    <attr name="rmtvRow" format="color" />
+    <attr name="rmtvRowFocused" format="color" />
+    <attr name="rmtvLogoBox" format="color" />
+    <attr name="rmtvSearchBg" format="color" />
+    <attr name="rmtvStroke" format="color" />
+    <attr name="rmtvText" format="color" />
+    <attr name="rmtvTextSecondary" format="color" />
+</resources>

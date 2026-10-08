@@ -1,0 +1,49 @@
+# ===== أسرار ومفاتيح (لا تُرفع أبداً) =====
+*.jks
+*.keystore
+.env
+.env.*
+**/.vercel/
+local.properties
+local.properties.*
+
+# ===== مخرجات البناء =====
+*.apk
+*.aab
+**/build/
+.gradle/
+**/.gradle/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ===== IDE =====
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# ===== Flutter (ملفات قديمة غير مستخدمة) =====
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+**/ephemeral/
+**/ios/Flutter/.last_build_id
+**/Pods/
+
+# ===== Node / Firebase =====
+node_modules/
+.firebase/
+firebase-debug.log
+
+# ===== متفرقات =====
+*.log
+*.class
+*.pyc
+*.swp
+.DS_Store
+Thumbs.db

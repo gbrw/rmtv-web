@@ -1,0 +1,43 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rmtv-tv",
+          "appId": "1:848064777628:android:11bee408d908e44fc60c59",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rmtv-tv",
+          "configurations": {
+            "android": "1:848064777628:android:11bee408d908e44fc60c59"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "pwa",
+    "ignore": ["firebase.json", "**/.*", "serve.ps1", "README.md", "vercel.json"],
+    "cleanUrls": false,
+    "headers": [
+      {
+        "source": "**/sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "**/*.@(webmanifest|html|js|css)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "admin/**",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
+      }
+    ]
+  }
+}
