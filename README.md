@@ -5,32 +5,31 @@
 | `/` | نسخة المشاهدة العامة، تعمل على كل الهواتف والمتصفحات ويمكن تثبيتها كتطبيق |
 | `/admin/` | لوحة التحكم، تعمل من أي متصفح (أندرويد، iOS، ويندوز) ويمكن تثبيتها كتطبيق |
 
-كلاهما يقرأ ويكتب في نفس قاعدة Firestore الخاصة بتطبيقات أندرويد (`networks`, `channels`, `settings/appUpdate`).
+الموقع المنشور: https://rmtv-tv.vercel.app — لوحة التحكم: https://rmtv-tv.vercel.app/admin/
+
+كلاهما يقرأ ويكتب في نفس قاعدة Firestore الخاصة بتطبيق أندرويد (`networks`, `channels`, `settings/appUpdate`).
+ملفات ثابتة بالكامل، بدون أي خطوة بناء.
+
+## المميزات
+- تعرض فقط القنوات التي تعمل في المتصفح (روابط `https` ويوتيوب)، وتُخفي الباقات الفارغة.
+- 9 مشغلات ويب (hls.js، Video.js، Shaka، Clappr، Plyr، ArtPlayer، DPlayer، مشغل الجهاز، mpegts.js) مع تبديل تلقائي عند الفشل.
+- المفضلة، البحث، التنقل بين القنوات، ملء الشاشة.
+- قابلة للتثبيت كتطبيق (PWA) مع Service Worker.
+- لوحة التحكم: دخول بحساب Google (الحسابات المسموحة في `config.js` → `ADMIN_EMAILS`)، إدارة الباقات والقنوات والترتيب والتفعيل والظهور على الويب، ونشر تحديثات تطبيق أندرويد.
 
 ## التجربة محلياً
 ```
-powershell -ExecutionPolicy Bypass -File pwa\serve.ps1
+powershell -ExecutionPolicy Bypass -File serve.ps1 -Port 5173
 ```
-ثم افتح http://localhost:8080 و http://localhost:8080/admin/
+ثم افتح http://localhost:5173 و http://localhost:5173/admin/
 
-## الإعداد لأول مرة (Firebase Console — مشروع rmtv-tv-488b9)
-1. **Authentication > Sign-in method**: فعّل Email/Password.
-2. **Authentication > Users**: أضف حساب المدير وانسخ الـ UID.
-3. **Firestore**: أنشئ مستنداً `admins/<UID>` (أي محتوى، مثلاً `name: "admin"`).
-4. (اختياري) **Project settings > Add app > Web**: انسخ `appId` إلى `pwa/config.js`.
-
-## النشر على Firebase Hosting
+## النشر على Vercel
 ```
-npm i -g firebase-tools
-firebase login
-firebase deploy --only hosting
-firebase deploy --only firestore:rules
+vercel deploy --prod
 ```
-> ⚠️ قواعد `firestore.rules` تمنع أي تعديل بدون تسجيل دخول مدير، وهذا يعني أن تطبيق الأدمن الحالي (أندرويد) لن يستطيع الحفظ بعد نشرها لأنه لا يسجّل دخولاً.
-
 عند كل تحديث للملفات غيّر `VERSION` في `sw.js` حتى يحصل المستخدمون على النسخة الجديدة.
 
 ## ملاحظات
-- روابط البث التي تبدأ بـ `http://` لا يسمح المتصفح بتشغيلها من موقع `https` (قيود أمان المتصفح). تعمل فقط روابط `https`.
+- روابط البث التي تبدأ بـ `http://` لا يسمح المتصفح بتشغيلها من موقع `https`، لذلك تُخفى من نسخة الويب.
 - بعض السيرفرات تمنع التشغيل من المتصفح (CORS) حتى لو كان الرابط يعمل في التطبيق.
 - على iOS: التثبيت من Safari عبر زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».
