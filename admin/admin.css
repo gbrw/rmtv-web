@@ -66,3 +66,31 @@
   #matchesBtn { padding: 0 10px; font-size: 13px; }
   .match-item .match-select { width: 100%; }
 }
+
+/* استيراد القنوات */
+.head-actions { display: flex; gap: 8px; }
+dialog.wide { width: min(640px, calc(100% - 24px)); }
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; }
+.seg label { flex: 1; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; text-align: center; padding: 9px 6px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.seg input:checked + span { background: var(--surface-2); color: var(--text); }
+.seg input:focus-visible + span { outline: 2px solid var(--primary); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.imp-summary { margin: 0 0 10px; font-weight: 700; }
+.imp-tools { display: flex; gap: 8px; margin-bottom: 10px; }
+.imp-tools .input { flex: 1; min-width: 0; }
+.imp-groups { max-height: 42dvh; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; }
+.imp-group { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+.imp-group + .imp-group { border-top: 1px solid var(--border); }
+.imp-group input { width: 20px; height: 20px; accent-color: var(--primary); flex: none; }
+.imp-group span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: auto; }
+.imp-group em { font-style: normal; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.imp-warn { color: #f5b731; font-size: 13px; margin: 8px 0 0; }
+.imp-progress { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+@media (max-width: 520px) {
+  .row2 { grid-template-columns: 1fr; gap: 0; }
+  .imp-tools { flex-wrap: wrap; }
+  .imp-tools .input { flex-basis: 100%; }
+  .head-actions #importBtn { padding: 0 12px; }
+}

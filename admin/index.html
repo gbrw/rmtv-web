@@ -77,7 +77,10 @@
           <h1 id="pageTitle">الباقات</h1>
           <p class="muted" id="pageSub"></p>
         </div>
-        <button class="btn btn-primary" id="addBtn"></button>
+        <div class="head-actions">
+          <button class="btn" id="importBtn" title="استيراد قنوات من Xtream أو M3U">استيراد</button>
+          <button class="btn btn-primary" id="addBtn"></button>
+        </div>
       </div>
       <div class="search">
         <span id="searchIcon"></span>
@@ -164,6 +167,76 @@
       </div>
       <div class="dialog-foot">
         <button class="btn btn-primary" type="submit" id="uSave">نشر التحديث</button>
+        <button class="btn" type="button" data-close>إلغاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- استيراد قنوات من مصدر IPTV -->
+  <dialog id="importDialog" class="wide">
+    <form id="importForm" method="dialog" novalidate>
+      <div class="dialog-head"><h2>استيراد قنوات</h2><button class="icon-btn btn-ghost" type="button" data-close aria-label="إغلاق"></button></div>
+      <div class="dialog-body">
+        <!-- الخطوة 1: المصدر -->
+        <div id="impStep1">
+          <div class="seg" role="radiogroup" aria-label="نوع المصدر">
+            <label><input type="radio" name="impType" value="xtream" checked><span>Xtream Codes</span></label>
+            <label><input type="radio" name="impType" value="m3u"><span>رابط M3U</span></label>
+            <label><input type="radio" name="impType" value="file"><span>ملف M3U</span></label>
+          </div>
+
+          <div data-type="xtream">
+            <div class="field"><label for="impServer">رابط السيرفر</label><input class="input" id="impServer" dir="ltr" inputmode="url" placeholder="http://example.com:8080"></div>
+            <div class="row2">
+              <div class="field"><label for="impUser">اسم المستخدم</label><input class="input" id="impUser" dir="ltr" autocomplete="off"></div>
+              <div class="field"><label for="impPass">كلمة المرور</label><input class="input" id="impPass" dir="ltr" autocomplete="off"></div>
+            </div>
+            <div class="field">
+              <label for="impExt">صيغة البث</label>
+              <select class="input" id="impExt"><option value="m3u8">HLS (m3u8) — مستحسن</option><option value="ts">MPEG-TS (ts)</option></select>
+            </div>
+          </div>
+
+          <div data-type="m3u" hidden>
+            <div class="field">
+              <label for="impUrl">رابط القائمة (M3U أو m3u_plus أو get.php)</label>
+              <textarea class="input" id="impUrl" dir="ltr" rows="2" placeholder="http://example.com/get.php?username=…&password=…&type=m3u_plus"></textarea>
+            </div>
+          </div>
+
+          <div data-type="file" hidden>
+            <div class="field">
+              <label for="impFile">ملف القائمة</label>
+              <input class="input" id="impFile" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/x-mpegurl">
+            </div>
+          </div>
+        </div>
+
+        <!-- الخطوة 2: اختيار التصنيفات -->
+        <div id="impStep2" hidden>
+          <p class="imp-summary" id="impSummary"></p>
+          <div class="imp-tools">
+            <input class="input" id="impSearch" type="search" placeholder="ابحث عن تصنيف…" autocomplete="off">
+            <button class="btn" type="button" id="impAll">تحديد الكل</button>
+            <button class="btn" type="button" id="impNone">إلغاء التحديد</button>
+          </div>
+          <div class="imp-groups" id="impGroups"></div>
+
+          <div class="field" style="margin-top:14px">
+            <label>طريقة الإضافة</label>
+            <label class="check"><input type="radio" name="impMode" value="perGroup" checked> كل تصنيف في باقة خاصة به</label>
+            <label class="check"><input type="radio" name="impMode" value="single"> كل القنوات في باقة واحدة</label>
+          </div>
+          <div class="field" id="impSingleName" hidden><label for="impName">اسم الباقة</label><input class="input" id="impName"></div>
+          <div class="field"><label for="impCategory">التصنيف في التطبيق (اختياري)</label><input class="input" id="impCategory" list="categoryList" placeholder="رياضة"></div>
+          <p class="imp-warn" id="impWarn" hidden></p>
+        </div>
+
+        <p class="form-error" id="impError" hidden></p>
+        <p class="imp-progress" id="impProgress" hidden></p>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn btn-primary" type="submit" id="impNext">جلب القنوات</button>
         <button class="btn" type="button" data-close>إلغاء</button>
       </div>
     </form>

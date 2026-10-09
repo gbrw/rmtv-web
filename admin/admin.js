@@ -1,5 +1,6 @@
 import { firebaseConfig, FIREBASE_SDK, ADMIN_EMAILS } from "../config.js";
 import { fetchMatches, statusText, dayKey } from "../matches.js";
+import { parseM3U, groupsOf, normalizeServer, xtreamFromUrl } from "../iptv.js";
 import { registerServiceWorker, setupInstallBanner, toast, escapeHtml, safeUrl, ICONS } from "../common.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
@@ -255,7 +256,7 @@ function webVisible(c) {
 // canUp/canDown:أزرار الترتيب تعمل على القائمة الكاملة فقط (بدون بحث)
 function itemHtml(item, kind, canUp, canDown) {
   const isNet = kind === "network";
-  const sub = isNet ? [`الترتيب: ${item.order ?? 0}`, item.category].filter(Boolean).join(" · ") : item.url || "";
+  const sub = isNet ? [`الترتيب: ${item.order ?? 0}`, item.category, item.source ? (item.source.type === "xtream" ? "Xtream" : "M3U") : ""].filter(Boolean).join(" · ") : item.url || "";
   const info = isNet
     ? `<a class="info" href="#/n/${encodeURIComponent(item.id)}"><strong>${escapeHtml(item.name)}</strong><span style="direction:rtl">${escapeHtml(sub)}</span></a>`
     : `<div class="info"><strong>${escapeHtml(item.name)}${item.streamType === "youtube" ? " · يوتيوب" : ""}${webVisible(item) ? "" : ' <em class="badge">مخفية من الويب</em>'}</strong><span>${escapeHtml(sub)}</span></div>`;
@@ -269,6 +270,7 @@ function itemHtml(item, kind, canUp, canDown) {
           <button data-act="down" aria-label="لأسفل" ${canDown ? "" : "disabled"}>${DOWN}</button>
         </div>
         <label class="switch" title="تفعيل/إيقاف"><input type="checkbox" data-act="toggle" ${item.isActive !== false ? "checked" : ""}><span></span></label>
+        ${kind === "network" && item.source && item.source.type !== "file" ? `<button class="icon-btn" data-act="sync" aria-label="تحديث القنوات من المصدر" title="تحديث القنوات من المصدر">${ICONS.reload}</button>` : ""}
         <button class="icon-btn" data-act="edit" aria-label="تعديل">${ICONS.edit}</button>
         <button class="icon-btn danger" data-act="delete" aria-label="حذف">${ICONS.trash}</button>
       </div>
@@ -278,6 +280,7 @@ function itemHtml(item, kind, canUp, canDown) {
 function render() {
   const q = $("search").value.trim().toLowerCase();
   $("addBtn").hidden = !!state.matchesView;
+  $("importBtn").hidden = !!state.matchesView || !!state.networkId;
   if (state.matchesView) { $("backBtn").hidden = false; return renderMatchesAdmin(q); }
   const inNetwork = !!state.networkId;
   const network = state.networks.find((n) => n.id === state.networkId);
@@ -316,6 +319,7 @@ $("list").addEventListener("click", async (e) => {
   if (!item) return;
   const act = btn.dataset.act;
 
+  if (act === "sync") return syncNetwork(item);
   if (act === "edit") return kind === "network" ? openNetworkForm(item) : openChannelForm(item);
   if (act === "delete") return kind === "network" ? deleteNetwork(item) : deleteChannel(item);
   if (act === "up" || act === "down") return move(kind, list, index, act === "up" ? -1 : 1);
@@ -347,9 +351,12 @@ async function move(kind, list, index, delta) {
   try { await batch.commit(); } catch (err) { toast("فشل تغيير الترتيب: " + errMsg(err), true); }
 }
 
-function confirmDialog(text) {
+function confirmDialog(text, okLabel = "حذف") {
   const d = $("confirmDialog");
   $("confirmText").textContent = text;
+  const ok = d.querySelector("button[value=yes]");
+  ok.textContent = okLabel;
+  ok.className = okLabel === "حذف" ? "btn btn-danger" : "btn btn-primary";
   d.returnValue = "";
   d.showModal();
   return new Promise((resolve) => d.addEventListener("close", () => resolve(d.returnValue === "yes"), { once: true }));
@@ -535,6 +542,218 @@ $("updateForm").addEventListener("submit", async (e) => {
     $("uSave").disabled = false;
   }
 });
+
+// ---------- استيراد قنوات من Xtream / M3U ----------
+// الخطوة 1: جلب القائمة (ملف M3U يُقرأ هنا، والروابط تُقرأ عبر api/source لأن المتصفح لا يستطيع قراءتها مباشرة)
+// الخطوة 2: اختيار التصنيفات ثم إضافتها كباقات وقنوات في Firestore. مصدر كل باقة يُحفظ فيها لتحديثها لاحقاً.
+
+const LARGE_IMPORT = 600;
+const imp = { channels: [], groups: [], source: null, selected: new Set() };
+
+const impType = () => document.querySelector('input[name="impType"]:checked').value;
+const impMode = () => document.querySelector('input[name="impMode"]:checked').value;
+
+function impError(msg) {
+  $("impError").textContent = msg || "";
+  $("impError").hidden = !msg;
+}
+function impProgress(msg) {
+  $("impProgress").textContent = msg || "";
+  $("impProgress").hidden = !msg;
+}
+
+function openImport() {
+  imp.channels = []; imp.groups = []; imp.source = null; imp.selected = new Set();
+  $("impStep1").hidden = false;
+  $("impStep2").hidden = true;
+  $("impNext").textContent = "جلب القنوات";
+  $("impNext").disabled = false;
+  impError(); impProgress();
+  $("importDialog").showModal();
+}
+$("importBtn").addEventListener("click", openImport);
+
+document.querySelectorAll('input[name="impType"]').forEach((r) => r.addEventListener("change", () => {
+  document.querySelectorAll("#impStep1 [data-type]").forEach((el) => (el.hidden = el.dataset.type !== impType()));
+  impError();
+}));
+document.querySelectorAll('input[name="impMode"]').forEach((r) => r.addEventListener("change", () => {
+  $("impSingleName").hidden = impMode() !== "single";
+}));
+
+/** يطلب القنوات من الدالة api/source (للروابط و Xtream) */
+async function fetchSource(source) {
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch("/api/source/", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(source),
+  });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(data.error || `خطأ ${res.status}`);
+  return data.channels || [];
+}
+
+async function readSourceFromForm() {
+  const type = impType();
+  if (type === "file") {
+    const file = $("impFile").files[0];
+    if (!file) throw new Error("اختر ملف القائمة");
+    return { source: { type: "file", name: file.name }, channels: parseM3U(await file.text()) };
+  }
+  if (type === "xtream") {
+    const source = { type: "xtream", server: normalizeServer($("impServer").value), username: $("impUser").value.trim(), password: $("impPass").value.trim(), ext: $("impExt").value };
+    if (!source.server || !source.username || !source.password) throw new Error("أكمل رابط السيرفر واسم المستخدم وكلمة المرور");
+    return { source, channels: await fetchSource(source) };
+  }
+  const url = $("impUrl").value.trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error("أدخل رابط القائمة كاملاً (يبدأ بـ http)");
+  // روابط get.php هي حسابات Xtream؛ نحفظها كـ Xtream لأن قراءتها عبر الـ API أسرع وأدق
+  const xt = xtreamFromUrl(url);
+  const source = xt ? { type: "xtream", ...xt } : { type: "m3u", url };
+  return { source, channels: await fetchSource(source) };
+}
+
+function renderImportGroups() {
+  const q = $("impSearch").value.trim().toLowerCase();
+  $("impGroups").innerHTML = imp.groups
+    .filter((g) => !q || g.name.toLowerCase().includes(q))
+    .map((g) => `<label class="imp-group"><input type="checkbox" value="${escapeHtml(g.name)}" ${imp.selected.has(g.name) ? "checked" : ""}><span>${escapeHtml(g.name)}</span><em>${g.count}</em></label>`)
+    .join("") || '<div class="state">لا توجد نتائج</div>';
+  updateImportSummary();
+}
+
+function updateImportSummary() {
+  const total = imp.groups.filter((g) => imp.selected.has(g.name)).reduce((s, g) => s + g.count, 0);
+  $("impSummary").textContent = `${imp.channels.length} قناة في ${imp.groups.length} تصنيف · المحدد: ${imp.selected.size} تصنيف (${total} قناة)`;
+  $("impWarn").hidden = total <= LARGE_IMPORT;
+  $("impWarn").textContent = `تنبيه: ${total} قناة عدد كبير. التطبيق يحمّل كل القنوات المفعّلة عند فتحه، والعدد الكبير يبطّئه ويستهلك حصة Firebase المجانية. يُفضّل اختيار التصنيفات التي تحتاجها فقط.`;
+  $("impNext").textContent = total ? `استيراد ${total} قناة` : "اختر تصنيفاً واحداً على الأقل";
+  $("impNext").disabled = !total;
+}
+
+$("impGroups").addEventListener("change", (e) => {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if (!cb) return;
+  cb.checked ? imp.selected.add(cb.value) : imp.selected.delete(cb.value);
+  updateImportSummary();
+});
+$("impSearch").addEventListener("input", renderImportGroups);
+$("impAll").addEventListener("click", () => {
+  const q = $("impSearch").value.trim().toLowerCase();
+  imp.groups.filter((g) => !q || g.name.toLowerCase().includes(q)).forEach((g) => imp.selected.add(g.name));
+  renderImportGroups();
+});
+$("impNone").addEventListener("click", () => { imp.selected.clear(); renderImportGroups(); });
+
+$("importForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  impError();
+  $("impNext").disabled = true;
+  try {
+    if (!$("impStep1").hidden) {
+      impProgress("جاري جلب القنوات من المصدر…");
+      const { source, channels } = await readSourceFromForm();
+      if (!channels.length) throw new Error("لم يتم العثور على قنوات في هذا المصدر");
+      imp.source = source;
+      imp.channels = channels;
+      imp.groups = groupsOf(channels);
+      imp.selected = new Set();
+      $("impSearch").value = "";
+      $("impName").value = source.type === "file" ? source.name.replace(/\.[^.]+$/, "") : "";
+      $("impStep1").hidden = true;
+      $("impStep2").hidden = false;
+      impProgress();
+      renderImportGroups();
+      return;
+    }
+    await runImport();
+  } catch (err) {
+    impProgress();
+    impError(errMsg(err));
+  } finally {
+    if (!$("impStep2").hidden) updateImportSummary(); else $("impNext").disabled = false;
+  }
+});
+
+/** كتابة القنوات على دفعات (Firestore يقبل 500 عملية في الدفعة) */
+async function writeChannels(networkId, channels, onProgress) {
+  for (let i = 0; i < channels.length; i += 450) {
+    const batch = writeBatch(db);
+    channels.slice(i, i + 450).forEach((c, j) => {
+      batch.set(doc(collection(db, "channels")), {
+        name: c.name, logoUrl: c.logo || "", url: c.url, streamType: "direct",
+        networkId, order: i + j + 1, isActive: true, imported: true,
+      });
+    });
+    await batch.commit();
+    onProgress?.(Math.min(i + 450, channels.length));
+  }
+}
+
+async function runImport() {
+  const groups = imp.groups.filter((g) => imp.selected.has(g.name)).map((g) => g.name);
+  const category = $("impCategory").value.trim();
+  const source = imp.source.type === "file" ? { type: "file" } : imp.source;
+  let order = nextOrder(state.networks);
+  let done = 0;
+  const total = imp.channels.filter((c) => imp.selected.has(c.group)).length;
+  const progress = (n) => impProgress(`جاري الإضافة… ${done + n} / ${total}`);
+
+  if (impMode() === "single") {
+    const name = $("impName").value.trim();
+    if (!name) throw new Error("أدخل اسم الباقة");
+    const ref = await addDoc(collection(db, "networks"), {
+      name, logoUrl: "", order, isActive: true, ...(category ? { category } : {}), source: { ...source, groups },
+    });
+    await writeChannels(ref.id, imp.channels.filter((c) => imp.selected.has(c.group)), progress);
+  } else {
+    for (const g of groups) {
+      const ref = await addDoc(collection(db, "networks"), {
+        name: g, logoUrl: "", order: order++, isActive: true, ...(category ? { category } : {}), source: { ...source, groups: [g] },
+      });
+      const chans = imp.channels.filter((c) => c.group === g);
+      await writeChannels(ref.id, chans, progress);
+      done += chans.length;
+    }
+  }
+  impProgress();
+  $("importDialog").close();
+  toast(`تمت إضافة ${total} قناة`);
+}
+
+/** تحديث قنوات باقة مستوردة من مصدرها (يستبدل القنوات المستوردة ويُبقي المضافة يدوياً) */
+async function syncNetwork(n) {
+  const src = n.source;
+  if (!src || src.type === "file") return toast("هذه الباقة ليس لها رابط مصدر للتحديث", true);
+  if (!(await confirmDialog(`تحديث قنوات «${n.name}» من المصدر؟ ستُستبدل القنوات المستوردة بالقائمة الحالية من السيرفر.`, "تحديث"))) return;
+  toast("جاري التحديث من المصدر…");
+  try {
+    const { groups, ...fetchable } = src;
+    const fresh = (await fetchSource(fetchable)).filter((c) => !groups?.length || groups.includes(c.group));
+    if (!fresh.length) throw new Error("لم يتم العثور على قنوات في المصدر");
+    const old = await getDocs(query(collection(db, "channels"), where("networkId", "==", n.id)));
+    const oldImported = old.docs.filter((d) => d.data().imported === true);
+    // نحافظ على إيقاف القنوات التي أوقفها المدير يدوياً
+    const disabled = new Set(oldImported.filter((d) => d.data().isActive === false).map((d) => d.data().name));
+    for (let i = 0; i < oldImported.length; i += 450) {
+      const batch = writeBatch(db);
+      oldImported.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    await writeChannels(n.id, fresh);
+    if (disabled.size) {
+      const now = await getDocs(query(collection(db, "channels"), where("networkId", "==", n.id)));
+      const batch = writeBatch(db);
+      now.docs.filter((d) => d.data().imported && disabled.has(d.data().name)).slice(0, 450).forEach((d) => batch.update(d.ref, { isActive: false }));
+      await batch.commit();
+    }
+    toast(`تم التحديث: ${fresh.length} قناة`);
+  } catch (err) {
+    toast("فشل التحديث: " + errMsg(err), true);
+  }
+}
 
 // ---------- PWA ----------
 registerServiceWorker("../sw.js", "../");
