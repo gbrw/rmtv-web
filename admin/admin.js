@@ -1,4 +1,5 @@
 import { firebaseConfig, FIREBASE_SDK, ADMIN_EMAILS } from "../config.js";
+import { fetchMatches, statusText, dayKey } from "../matches.js";
 import { registerServiceWorker, setupInstallBanner, toast, escapeHtml, safeUrl, ICONS } from "../common.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
@@ -136,6 +137,9 @@ function watchChannels(networkId) {
 // ---------- التوجيه ----------
 function onRoute() {
   if (!isAdmin(auth.currentUser)) return;
+  const wasMatches = state.matchesView;
+  state.matchesView = location.hash.startsWith("#/matches");
+  if (state.matchesView && !wasMatches) { $("search").value = ""; loadMatchesAdmin(); }
   const m = location.hash.match(/^#\/n\/([^/]+)/);
   const networkId = m ? decodeURIComponent(m[1]) : null;
   if (networkId !== state.networkId) {
@@ -149,6 +153,91 @@ function onRoute() {
 }
 window.addEventListener("hashchange", onRoute);
 $("backBtn").addEventListener("click", () => (location.hash = "#/"));
+
+// ---------- مباريات اليوم: ربط كل مباراة بقناة ----------
+// المباريات تُجلب تلقائياً (matches.js)، والمدير يختار القناة الناقلة فتُحفظ في matchLinks/{رقم المباراة}
+state.matches = [];
+state.matchesLoaded = false;
+state.matchLinks = {};
+state.allChannels = [];
+
+async function loadMatchesAdmin() {
+  state.matchesLoaded = false;
+  render();
+  try {
+    const [matches, links, chans] = await Promise.all([
+      fetchMatches(),
+      getDocs(query(collection(db, "matchLinks"), where("date", "==", dayKey()))),
+      getDocs(collection(db, "channels")),
+    ]);
+    state.matches = matches;
+    state.matchLinks = Object.fromEntries(links.docs.map((d) => [d.id, d.data().channelId]));
+    state.allChannels = chans.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.isActive !== false);
+  } catch (err) {
+    toast("تعذر جلب المباريات: " + errMsg(err), true);
+  }
+  state.matchesLoaded = true;
+  render();
+}
+
+function channelOptions(selectedId) {
+  const byNet = state.networks.map((n) => {
+    const chans = state.allChannels.filter((c) => c.networkId === n.id).sort(byOrder);
+    if (!chans.length) return "";
+    return `<optgroup label="${escapeHtml(n.name)}">${chans.map((c) =>
+      `<option value="${escapeHtml(c.id)}"${c.id === selectedId ? " selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}</optgroup>`;
+  }).join("");
+  return `<option value="">— بدون قناة —</option>${byNet}`;
+}
+
+function renderMatchesAdmin(q) {
+  $("pageTitle").textContent = "مباريات اليوم";
+  if (!state.matchesLoaded) {
+    $("pageSub").textContent = "";
+    return void ($("list").innerHTML = '<div class="spinner"></div>');
+  }
+  const linked = state.matches.filter((m) => state.matchLinks[m.id]).length;
+  $("pageSub").textContent = `${state.matches.length} مباراة · ${linked} مرتبطة بقناة`;
+  const list = state.matches.filter((m) => !q || `${m.home.name} ${m.away.name} ${m.league.name}`.toLowerCase().includes(q));
+  if (!list.length) {
+    $("list").innerHTML = `<div class="state">${q ? "لا توجد نتائج" : "لا توجد مباريات في الدوريات المتابعة اليوم"}</div>`;
+    return;
+  }
+  $("list").innerHTML = list.map((m) => `
+    <div class="item match-item${state.matchLinks[m.id] ? "" : " inactive"}">
+      <div class="info">
+        <strong>${escapeHtml(m.home.name)} × ${escapeHtml(m.away.name)}</strong>
+        <span style="direction:rtl">${escapeHtml(m.league.name)} · ${escapeHtml(statusText(m))}</span>
+      </div>
+      <select class="input match-select" data-match="${escapeHtml(m.id)}" aria-label="القناة الناقلة">${channelOptions(state.matchLinks[m.id])}</select>
+    </div>`).join("");
+}
+
+$("list").addEventListener("change", async (e) => {
+  const sel = e.target.closest("select[data-match]");
+  if (!sel) return;
+  const m = state.matches.find((x) => x.id === sel.dataset.match);
+  if (!m) return;
+  try {
+    if (sel.value) {
+      await setDoc(doc(db, "matchLinks", m.id), {
+        date: dayKey(), channelId: sel.value,
+        home: m.home.name, away: m.away.name, league: m.league.name, start: m.start.toISOString(),
+      });
+      state.matchLinks[m.id] = sel.value;
+      toast("تم ربط المباراة بالقناة");
+    } else {
+      await deleteDoc(doc(db, "matchLinks", m.id));
+      delete state.matchLinks[m.id];
+      toast("أُزيل ربط القناة");
+    }
+    render();
+  } catch (err) {
+    toast("فشل الحفظ: " + errMsg(err), true);
+  }
+});
+
+$("matchesBtn").addEventListener("click", () => (location.hash = "#/matches"));
 
 // ---------- العرض ----------
 function thumb(url) {
@@ -188,6 +277,8 @@ function itemHtml(item, kind, canUp, canDown) {
 
 function render() {
   const q = $("search").value.trim().toLowerCase();
+  $("addBtn").hidden = !!state.matchesView;
+  if (state.matchesView) { $("backBtn").hidden = false; return renderMatchesAdmin(q); }
   const inNetwork = !!state.networkId;
   const network = state.networks.find((n) => n.id === state.networkId);
   $("backBtn").hidden = !inNetwork;

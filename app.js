@@ -1,6 +1,7 @@
 import { firebaseConfig, FIREBASE_SDK } from "./config.js";
 import { registerServiceWorker, setupInstallBanner, toast, escapeHtml, safeUrl, ICONS } from "./common.js";
 import { enginesFor } from "./engines.js";
+import { fetchMatches, statusText, dayKey } from "./matches.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getFirestore, collection, query, where, onSnapshot, getDocs, documentId } =
@@ -97,6 +98,7 @@ onSnapshot(
     state.allChannels = snap.docs.map(toChannel).filter(webVisible).sort(byOrder);
     state.allChannelsLoaded = true;
     if (state.view === "channels") watchNetworkChannels(state.networkId);
+    else if (state.view === "matches") updateMatchChannels();
     render();
   },
   (err) => {
@@ -139,6 +141,7 @@ function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "n" && parts[1]) return { view: "channels", networkId: parts[1], channelId: parts[3] || null };
   if (parts[0] === "fav") return { view: "favorites", channelId: parts[2] || null };
+  if (parts[0] === "m") return { view: "matches", channelId: parts[2] || null };
   return { view: "networks" };
 }
 
@@ -155,6 +158,7 @@ function onRoute() {
     el.search.value = "";
     if (r.view === "channels") watchNetworkChannels(r.networkId);
     else if (r.view === "favorites") loadFavorites();
+    else if (r.view === "matches") loadMatches();
     window.scrollTo(0, 0);
   }
 
@@ -166,6 +170,101 @@ window.addEventListener("hashchange", onRoute);
 
 function go(hash) { location.hash = hash; }
 const listHash = () => location.hash.replace(/\/c\/.*$/, "");
+
+// ---------- مباريات اليوم ----------
+state.matches = [];
+state.matchesLoaded = false;
+state.matchesError = null;
+state.matchLinks = {}; // رقم المباراة → رقم القناة (يحدده المدير من لوحة التحكم)
+let matchesTimer = null;
+
+async function loadMatchLinks() {
+  const snap = await getDocs(query(collection(db, "matchLinks"), where("date", "==", dayKey())));
+  return Object.fromEntries(snap.docs.map((d) => [d.id, d.data().channelId]));
+}
+
+// القنوات المرتبطة بمباريات اليوم (لتعمل أزرار القناة التالية/السابقة داخل المشغل)
+function updateMatchChannels() {
+  if (state.view !== "matches") return;
+  const ids = [...new Set(state.matches.map((m) => state.matchLinks[m.id]).filter(Boolean))];
+  state.channels = ids.map((id) => (state.allChannels || []).find((c) => c.id === id)).filter(Boolean);
+  state.channelsLoaded = state.matchesLoaded && !!state.allChannelsLoaded;
+}
+
+async function loadMatches() {
+  clearInterval(matchesTimer);
+  const refresh = async () => {
+    try {
+      const [list, links] = await Promise.all([fetchMatches(), loadMatchLinks().catch(() => state.matchLinks)]);
+      state.matches = list;
+      state.matchLinks = links;
+      state.matchesError = null;
+    } catch {
+      state.matchesError = navigator.onLine ? "تعذر جلب المباريات حالياً. حاول بعد قليل." : "لا يوجد اتصال بالإنترنت";
+    }
+    state.matchesLoaded = true;
+    updateMatchChannels();
+    if (state.view === "matches") render();
+  };
+  render();
+  await refresh();
+  // تحديث النتائج كل دقيقة ما دامت الصفحة مفتوحة
+  matchesTimer = setInterval(() => {
+    if (state.view !== "matches") return clearInterval(matchesTimer);
+    if (!document.hidden) refresh();
+  }, 60000);
+}
+
+function teamHtml(t, side) {
+  const logo = safeUrl(t.logo);
+  return `<div class="team ${side}">${logo ? `<img src="${escapeHtml(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span>${escapeHtml(t.name)}</span></div>`;
+}
+
+function renderMatches(q) {
+  el.title.textContent = "مباريات اليوم";
+  el.subtitle.textContent = new Date().toLocaleDateString("ar-IQ", { weekday: "long", day: "numeric", month: "long" });
+  el.search.placeholder = "ابحث عن فريق أو دوري...";
+  if (!state.matchesLoaded) return void (el.content.innerHTML = '<div class="spinner"></div>');
+  if (state.matchesError && !state.matches.length) {
+    return void (el.content.innerHTML = `<div class="state error">${escapeHtml(state.matchesError)}</div>`);
+  }
+
+  const list = state.matches.filter((m) => !q || `${m.home.name} ${m.away.name} ${m.league.name}`.toLowerCase().includes(q));
+  if (!list.length) {
+    el.content.innerHTML = `<div class="state">${q ? "لا توجد نتائج" : "لا توجد مباريات في الدوريات المتابعة اليوم"}</div>`;
+    return;
+  }
+
+  const groups = [];
+  list.forEach((m) => {
+    const g = groups[groups.length - 1];
+    if (g && g.league.slug === m.league.slug) g.items.push(m);
+    else groups.push({ league: m.league, items: [m] });
+  });
+
+  el.content.innerHTML = groups.map((g) => `
+    <section class="league">
+      <h2>${safeUrl(g.league.logo) ? `<img src="${escapeHtml(safeUrl(g.league.logo))}" alt="" loading="lazy">` : ""}${escapeHtml(g.league.name)}</h2>
+      <div class="match-list">${g.items.map((m) => {
+        const chId = state.matchLinks[m.id];
+        const ch = chId && (state.allChannels || []).find((c) => c.id === chId);
+        const started = m.state !== "pre";
+        const mid = started
+          ? `<b>${escapeHtml(String(m.home.score))} - ${escapeHtml(String(m.away.score))}</b><small class="${m.state === "in" ? "live-txt" : ""}">${escapeHtml(statusText(m))}</small>`
+          : `<b>${escapeHtml(statusText(m))}</b><small>لم تبدأ</small>`;
+        const chHtml = ch
+          ? `<span class="ch">${ICONS.tv}${escapeHtml(ch.name)}</span>`
+          : chId
+            ? `<span class="ch muted">تُعرض في تطبيق RM TV</span>`
+            : "";
+        const inner = `${teamHtml(m.home, "home")}<div class="mid">${mid}</div>${teamHtml(m.away, "away")}${chHtml}`;
+        const cls = `match${m.state === "in" ? " is-live" : ""}${m.state === "post" ? " is-done" : ""}`;
+        return ch
+          ? `<a class="${cls}" href="#/m/c/${encodeURIComponent(ch.id)}">${inner}</a>`
+          : `<div class="${cls}">${inner}</div>`;
+      }).join("")}</div>
+    </section>`).join("");
+}
 
 // ---------- العرض ----------
 function logoHtml(url) {
@@ -191,8 +290,12 @@ function renderView() {
   const q = el.search.value.trim().toLowerCase();
   const network = state.networks.find((n) => n.id === state.networkId);
 
-  el.back.hidden = state.view === "networks";
+  el.back.hidden = state.view !== "channels";
   el.fav.classList.toggle("on", state.view === "favorites");
+  document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === (state.view === "channels" ? "networks" : state.view)));
+  $("tabs").hidden = state.view === "channels";
+
+  if (state.view === "matches") return renderMatches(q);
 
   if (state.view === "networks") {
     el.title.textContent = "اختر باقتك";

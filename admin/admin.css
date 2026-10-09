@@ -58,3 +58,11 @@
 .logo-field { display: flex; gap: 8px; align-items: center; }
 .logo-preview { width: 48px; height: 48px; flex: none; border-radius: 10px; background: #0d131a; border: 1px solid var(--border); overflow: hidden; }
 .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+
+/* مباريات اليوم */
+#matchesBtn { min-height: 40px; font-size: 14px; }
+.match-item .match-select { width: 230px; flex: none; min-height: 42px; }
+@media (max-width: 520px) {
+  #matchesBtn { padding: 0 10px; font-size: 13px; }
+  .match-item .match-select { width: 100%; }
+}
