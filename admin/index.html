@@ -93,6 +93,11 @@
       <div class="dialog-body">
         <div class="field"><label for="nName">الاسم *</label><input class="input" id="nName" required></div>
         <div class="field">
+          <label for="nCategory">التصنيف</label>
+          <input class="input" id="nCategory" list="categoryList" placeholder="رياضة">
+          <datalist id="categoryList"><option value="رياضة"><option value="أخبار"><option value="أطفال"><option value="إسلامية"><option value="أفلام"><option value="منوعات"></datalist>
+        </div>
+        <div class="field">
           <label for="nLogo">رابط الشعار</label>
           <div class="logo-field"><input class="input" id="nLogo" type="url" dir="ltr" inputmode="url"><span class="logo-preview" id="nLogoPreview"></span></div>
         </div>

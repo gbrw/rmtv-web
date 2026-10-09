@@ -166,7 +166,7 @@ function webVisible(c) {
 // canUp/canDown:أزرار الترتيب تعمل على القائمة الكاملة فقط (بدون بحث)
 function itemHtml(item, kind, canUp, canDown) {
   const isNet = kind === "network";
-  const sub = isNet ? `الترتيب: ${item.order ?? 0}` : item.url || "";
+  const sub = isNet ? [`الترتيب: ${item.order ?? 0}`, item.category].filter(Boolean).join(" · ") : item.url || "";
   const info = isNet
     ? `<a class="info" href="#/n/${encodeURIComponent(item.id)}"><strong>${escapeHtml(item.name)}</strong><span style="direction:rtl">${escapeHtml(sub)}</span></a>`
     : `<div class="info"><strong>${escapeHtml(item.name)}${item.streamType === "youtube" ? " · يوتيوب" : ""}${webVisible(item) ? "" : ' <em class="badge">مخفية من الويب</em>'}</strong><span>${escapeHtml(sub)}</span></div>`;
@@ -313,6 +313,11 @@ function openNetworkForm(n) {
   $("nSave").textContent = n ? "تحديث" : "حفظ";
   $("nName").value = n?.name || "";
   $("nLogo").value = n?.logoUrl || "";
+  $("nCategory").value = n?.category || "";
+  // اقتراح التصنيفات المستخدمة سابقاً
+  const cats = [...new Set(state.networks.map((x) => (x.category || "").trim()).filter(Boolean))];
+  const dl = $("categoryList");
+  cats.forEach((c) => { if (![...dl.options].some((o) => o.value === c)) dl.append(new Option(c, c)); });
   $("nOrder").value = n ? n.order ?? 0 : nextOrder(state.networks);
   $("nActive").checked = n ? n.isActive !== false : true;
   updateNetLogo();
@@ -326,6 +331,8 @@ $("networkForm").addEventListener("submit", async (e) => {
   const data = {
     name,
     logoUrl: $("nLogo").value.trim(),
+    // التصنيف يظهر كشرائح في تطبيق أندرويد (رياضة، أخبار...)
+    category: $("nCategory").value.trim(),
     order: parseInt($("nOrder").value, 10) || 0,
     isActive: $("nActive").checked,
   };
