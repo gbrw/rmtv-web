@@ -1,6 +1,6 @@
 // Service Worker مشترك لنسخة الويب العامة ولوحة التحكم (/admin/).
 // غيّر VERSION عند كل نشر حتى يحصل المستخدمون على النسخة الجديدة.
-const VERSION = "rmtv-v12";
+const VERSION = "rmtv-v13";
 const SHELL = [
   "./",
   "index.html",

@@ -61,7 +61,7 @@ const toChannel = (d) => {
   const x = d.data();
   return { id: d.id, name: x.name || "", logoUrl: x.logoUrl || "", url: x.url || "",
     streamType: x.streamType || "direct", networkId: x.networkId || "", order: x.order ?? 0,
-    showOnWeb: x.showOnWeb };
+    showOnWeb: x.showOnWeb, group: (x.group || "").trim() };
 };
 
 // نسخة الويب تعرض فقط القنوات التي تعمل طبيعياً في المتصفح: روابط https ويوتيوب.
@@ -109,7 +109,7 @@ onSnapshot(
 );
 
 function watchNetworkChannels(networkId) {
-  state.channels = (state.allChannels || []).filter((c) => c.networkId === networkId);
+  state.channels = (state.allChannels || []).filter((c) => c.networkId === networkId && (state.group == null || c.group === state.group));
   state.channelsLoaded = !!state.allChannelsLoaded;
 }
 
@@ -139,7 +139,11 @@ async function loadFavorites() {
 // ---------- التوجيه (يدعم زر الرجوع في المتصفح والهاتف) ----------
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts[0] === "n" && parts[1]) return { view: "channels", networkId: parts[1], channelId: parts[3] || null };
+  if (parts[0] === "n" && parts[1]) {
+    const g = parts[2] === "g" ? parts[3] : null;
+    const rest = g !== null ? parts.slice(4) : parts.slice(2);
+    return { view: "channels", networkId: parts[1], group: g, channelId: rest[0] === "c" ? rest[1] || null : null };
+  }
   if (parts[0] === "fav") return { view: "favorites", channelId: parts[2] || null };
   if (parts[0] === "m") return { view: "matches", channelId: parts[2] || null };
   return { view: "networks" };
@@ -149,10 +153,11 @@ let playerPushed = false; // هل فُتح المشغل من داخل القائ
 
 function onRoute() {
   const r = parseRoute();
-  const viewChanged = r.view !== state.view || r.networkId !== state.networkId;
+  const viewChanged = r.view !== state.view || r.networkId !== state.networkId || (r.group ?? null) !== (state.group ?? null);
   if (r.channelId && el.player.hidden) playerPushed = !viewChanged;
   state.view = r.view;
   state.networkId = r.networkId || null;
+  state.group = r.group ?? null;
 
   if (viewChanged) {
     el.search.value = "";
@@ -314,8 +319,28 @@ function renderView() {
     return;
   }
 
-  el.title.textContent = state.view === "favorites" ? "المفضلة" : (network?.name || "القنوات");
-  el.subtitle.textContent = state.view === "favorites" ? "قنواتك المحفوظة على هذا الجهاز" : "اختر القناة للمشاهدة";
+  el.title.textContent = state.view === "favorites" ? "المفضلة" : (state.group || network?.name || "القنوات");
+  el.subtitle.textContent = state.view === "favorites" ? "قنواتك المحفوظة على هذا الجهاز" : state.group ? (network?.name || "") : "اختر القناة للمشاهدة";
+
+  // باقة فيها تصنيفات: نعرض التصنيفات أولاً (إلا أثناء البحث فنعرض القنوات المطابقة من كل التصنيفات)
+  if (state.view === "channels" && state.group == null && state.channelsLoaded && !q) {
+    const groups = [];
+    state.channels.forEach((c) => {
+      const g = groups.find((x) => x.name === c.group);
+      g ? g.count++ : groups.push({ name: c.group, count: 1, logo: c.logoUrl });
+    });
+    if (groups.length > 1 || (groups.length === 1 && groups[0].name)) {
+      el.subtitle.textContent = "اختر التصنيف";
+      el.search.placeholder = "ابحث عن قناة في كل التصنيفات...";
+      el.content.innerHTML = `<div class="group-list">${groups.map((g) => `
+        <a class="group-row" href="#/n/${encodeURIComponent(state.networkId)}/g/${encodeURIComponent(g.name)}">
+          <span class="g-name">${escapeHtml(g.name || "قنوات أخرى")}</span>
+          <span class="g-count">${g.count} قناة</span>
+          <span class="g-chev">${ICONS.chevron}</span>
+        </a>`).join("")}</div>`;
+      return;
+    }
+  }
   el.search.placeholder = "ابحث عن قناة...";
   if (!state.channelsLoaded) return void (el.content.innerHTML = '<div class="spinner"></div>');
 
@@ -326,7 +351,7 @@ function renderView() {
     el.content.innerHTML = `<div class="state" style="white-space:pre-line">${empty}</div>`;
     return;
   }
-  const base = state.view === "favorites" ? "#/fav" : `#/n/${encodeURIComponent(state.networkId)}`;
+  const base = state.view === "favorites" ? "#/fav" : `#/n/${encodeURIComponent(state.networkId)}${state.group != null ? `/g/${encodeURIComponent(state.group)}` : ""}`;
   el.content.innerHTML = `<div class="grid channels">${list.map((c) => `
     <a class="card" href="${base}/c/${encodeURIComponent(c.id)}">
       <button class="fav ${favs.has(c.id) ? "on" : ""}" data-fav="${escapeHtml(c.id)}" aria-label="مفضلة">${ICONS.star}</button>
@@ -336,7 +361,7 @@ function renderView() {
 }
 
 el.search.addEventListener("input", render);
-el.back.addEventListener("click", () => go("#/"));
+el.back.addEventListener("click", () => go(state.group != null ? `#/n/${encodeURIComponent(state.networkId)}` : "#/"));
 el.fav.addEventListener("click", () => go(state.view === "favorites" ? "#/" : "#/fav"));
 el.content.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-fav]");

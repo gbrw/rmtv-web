@@ -124,6 +124,11 @@
       <div class="dialog-body">
         <div class="field"><label for="cName">الاسم *</label><input class="input" id="cName" required></div>
         <div class="field">
+          <label for="cGroup">التصنيف داخل الباقة (اختياري)</label>
+          <input class="input" id="cGroup" list="groupList" placeholder="AR beIN">
+          <datalist id="groupList"></datalist>
+        </div>
+        <div class="field">
           <label for="cLogo">رابط الشعار</label>
           <div class="logo-field"><input class="input" id="cLogo" type="url" dir="ltr" inputmode="url"><span class="logo-preview" id="cLogoPreview"></span></div>
         </div>
@@ -222,13 +227,13 @@
           </div>
           <div class="imp-groups" id="impGroups"></div>
 
+          <!-- التصنيفات المحددة تُضاف داخل باقة واحدة (الباقة ← التصنيفات ← القنوات) -->
           <div class="field" style="margin-top:14px">
-            <label>طريقة الإضافة</label>
-            <label class="check"><input type="radio" name="impMode" value="perGroup" checked> كل تصنيف في باقة خاصة به</label>
-            <label class="check"><input type="radio" name="impMode" value="single"> كل القنوات في باقة واحدة</label>
+            <label for="impTarget">الباقة</label>
+            <select class="input" id="impTarget"></select>
           </div>
-          <div class="field" id="impSingleName" hidden><label for="impName">اسم الباقة</label><input class="input" id="impName"></div>
-          <div class="field"><label for="impCategory">التصنيف في التطبيق (اختياري)</label><input class="input" id="impCategory" list="categoryList" placeholder="رياضة"></div>
+          <div class="field" id="impNewName"><label for="impName">اسم الباقة الجديدة *</label><input class="input" id="impName" placeholder="سيرفر 1"></div>
+          <div class="field"><label for="impCategory">تصنيف الباقة في التطبيق (اختياري)</label><input class="input" id="impCategory" list="categoryList" placeholder="رياضة"></div>
           <p class="imp-warn" id="impWarn" hidden></p>
         </div>
 

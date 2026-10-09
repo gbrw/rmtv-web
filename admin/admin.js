@@ -259,7 +259,7 @@ function itemHtml(item, kind, canUp, canDown) {
   const sub = isNet ? [`الترتيب: ${item.order ?? 0}`, item.category, item.source ? (item.source.type === "xtream" ? "Xtream" : "M3U") : ""].filter(Boolean).join(" · ") : item.url || "";
   const info = isNet
     ? `<a class="info" href="#/n/${encodeURIComponent(item.id)}"><strong>${escapeHtml(item.name)}</strong><span style="direction:rtl">${escapeHtml(sub)}</span></a>`
-    : `<div class="info"><strong>${escapeHtml(item.name)}${item.streamType === "youtube" ? " · يوتيوب" : ""}${webVisible(item) ? "" : ' <em class="badge">مخفية من الويب</em>'}</strong><span>${escapeHtml(sub)}</span></div>`;
+    : `<div class="info"><strong>${escapeHtml(item.name)}${item.streamType === "youtube" ? " · يوتيوب" : ""}${!isNet && item.group ? ` <em class="badge">${escapeHtml(item.group)}</em>` : ""}${webVisible(item) ? "" : ' <em class="badge">مخفية من الويب</em>'}</strong><span>${escapeHtml(sub)}</span></div>`;
   return `
     <div class="item ${item.isActive === false ? "inactive" : ""}" data-id="${escapeHtml(item.id)}" data-kind="${kind}">
       ${thumb(item.logoUrl)}
@@ -454,6 +454,10 @@ function openChannelForm(c) {
   $("channelDialogTitle").textContent = c ? "تعديل القناة" : "إضافة قناة";
   $("cSave").textContent = c ? "تحديث القناة" : "حفظ";
   $("cName").value = c?.name || "";
+  $("cGroup").value = c?.group || "";
+  // اقتراح تصنيفات الباقة الحالية
+  $("groupList").innerHTML = [...new Set(state.channels.map((x) => (x.group || "").trim()).filter(Boolean))]
+    .map((g) => `<option value="${escapeHtml(g)}">`).join("");
   $("cLogo").value = c?.logoUrl || "";
   $("cUrl").value = c?.url || "";
   $("cType").value = c?.streamType === "youtube" ? "youtube" : "direct";
@@ -480,6 +484,7 @@ $("channelForm").addEventListener("submit", async (e) => {
   const data = {
     name,
     logoUrl: $("cLogo").value.trim(),
+    group: $("cGroup").value.trim(),
     url,
     streamType: $("cType").value,
     networkId: $("cNetwork").value || state.networkId,
@@ -551,7 +556,6 @@ const LARGE_IMPORT = 600;
 const imp = { channels: [], groups: [], source: null, selected: new Set() };
 
 const impType = () => document.querySelector('input[name="impType"]:checked').value;
-const impMode = () => document.querySelector('input[name="impMode"]:checked').value;
 
 function impError(msg) {
   $("impError").textContent = msg || "";
@@ -577,9 +581,13 @@ document.querySelectorAll('input[name="impType"]').forEach((r) => r.addEventList
   document.querySelectorAll("#impStep1 [data-type]").forEach((el) => (el.hidden = el.dataset.type !== impType()));
   impError();
 }));
-document.querySelectorAll('input[name="impMode"]').forEach((r) => r.addEventListener("change", () => {
-  $("impSingleName").hidden = impMode() !== "single";
-}));
+// الوجهة: باقة جديدة أو إضافة التصنيفات إلى باقة موجودة
+function fillImportTargets() {
+  $("impTarget").innerHTML = `<option value="">＋ باقة جديدة</option>` +
+    state.networks.map((n) => `<option value="${escapeHtml(n.id)}">إضافة إلى: ${escapeHtml(n.name)}</option>`).join("");
+  $("impNewName").hidden = false;
+}
+$("impTarget").addEventListener("change", () => { $("impNewName").hidden = !!$("impTarget").value; });
 
 /** يطلب القنوات من الدالة api/source (للروابط و Xtream) */
 async function fetchSource(source) {
@@ -662,6 +670,7 @@ $("importForm").addEventListener("submit", async (e) => {
       imp.selected = new Set();
       $("impSearch").value = "";
       $("impName").value = source.type === "file" ? source.name.replace(/\.[^.]+$/, "") : "";
+      fillImportTargets();
       $("impStep1").hidden = true;
       $("impStep2").hidden = false;
       impProgress();
@@ -678,13 +687,13 @@ $("importForm").addEventListener("submit", async (e) => {
 });
 
 /** كتابة القنوات على دفعات (Firestore يقبل 500 عملية في الدفعة) */
-async function writeChannels(networkId, channels, onProgress) {
+async function writeChannels(networkId, channels, onProgress, startOrder = 0) {
   for (let i = 0; i < channels.length; i += 450) {
     const batch = writeBatch(db);
     channels.slice(i, i + 450).forEach((c, j) => {
       batch.set(doc(collection(db, "channels")), {
         name: c.name, logoUrl: c.logo || "", url: c.url, streamType: "direct",
-        networkId, order: i + j + 1, isActive: true, imported: true,
+        group: c.group || "", networkId, order: startOrder + i + j + 1, isActive: true, imported: true,
       });
     });
     await batch.commit();
@@ -694,33 +703,37 @@ async function writeChannels(networkId, channels, onProgress) {
 
 async function runImport() {
   const groups = imp.groups.filter((g) => imp.selected.has(g.name)).map((g) => g.name);
+  const chans = imp.channels.filter((c) => imp.selected.has(c.group));
   const category = $("impCategory").value.trim();
   const source = imp.source.type === "file" ? { type: "file" } : imp.source;
-  let order = nextOrder(state.networks);
-  let done = 0;
-  const total = imp.channels.filter((c) => imp.selected.has(c.group)).length;
-  const progress = (n) => impProgress(`جاري الإضافة… ${done + n} / ${total}`);
+  const progress = (n) => impProgress(`جاري الإضافة… ${n} / ${chans.length}`);
+  let networkId = $("impTarget").value;
+  let startOrder = 0;
 
-  if (impMode() === "single") {
+  if (!networkId) {
     const name = $("impName").value.trim();
     if (!name) throw new Error("أدخل اسم الباقة");
     const ref = await addDoc(collection(db, "networks"), {
-      name, logoUrl: "", order, isActive: true, ...(category ? { category } : {}), source: { ...source, groups },
+      name, logoUrl: "", order: nextOrder(state.networks), isActive: true,
+      ...(category ? { category } : {}), source: { ...source, groups },
     });
-    await writeChannels(ref.id, imp.channels.filter((c) => imp.selected.has(c.group)), progress);
+    networkId = ref.id;
   } else {
-    for (const g of groups) {
-      const ref = await addDoc(collection(db, "networks"), {
-        name: g, logoUrl: "", order: order++, isActive: true, ...(category ? { category } : {}), source: { ...source, groups: [g] },
-      });
-      const chans = imp.channels.filter((c) => c.group === g);
-      await writeChannels(ref.id, chans, progress);
-      done += chans.length;
-    }
+    // باقة موجودة: نضيف التصنيفات الجديدة إلى مصدرها، والقنوات بعد قنواتها الحالية
+    const n = state.networks.find((x) => x.id === networkId);
+    const existing = await getDocs(query(collection(db, "channels"), where("networkId", "==", networkId)));
+    startOrder = existing.docs.reduce((m, d) => Math.max(m, Number(d.data().order) || 0), 0);
+    const strip = (o) => JSON.stringify({ ...o, groups: null });
+    const update = category ? { category } : {};
+    if (!n?.source) update.source = { ...source, groups };
+    else if (strip(n.source) === strip(source)) update.source = { ...n.source, groups: [...new Set([...(n.source.groups || []), ...groups])] };
+    if (Object.keys(update).length) await updateDoc(doc(db, "networks", networkId), update);
   }
+
+  await writeChannels(networkId, chans, progress, startOrder);
   impProgress();
   $("importDialog").close();
-  toast(`تمت إضافة ${total} قناة`);
+  toast(`تمت إضافة ${chans.length} قناة في ${groups.length} تصنيف`);
 }
 
 /** تحديث قنوات باقة مستوردة من مصدرها (يستبدل القنوات المستوردة ويُبقي المضافة يدوياً) */

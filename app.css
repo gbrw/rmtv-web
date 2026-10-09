@@ -141,3 +141,12 @@ a.match:hover, a.match:focus-visible { background: var(--surface-2); outline: no
   .match .team.away { flex-direction: column-reverse; justify-content: center; }
   .match .team span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }
+
+/* التصنيفات داخل الباقة */
+.group-list { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.group-row { display: flex; align-items: center; gap: 12px; padding: 16px; color: var(--text); text-decoration: none; }
+.group-row + .group-row { border-top: 1px solid var(--border); }
+.group-row:hover, .group-row:focus-visible { background: var(--surface-2); outline: none; }
+.group-row .g-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: auto; text-align: start; }
+.group-row .g-count { color: var(--muted); font-size: 13px; }
+.group-row .g-chev svg { width: 18px; height: 18px; color: var(--muted); }
